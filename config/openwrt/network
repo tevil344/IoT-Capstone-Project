@@ -1,0 +1,52 @@
+config interface 'loopback'
+	option device 'lo'
+	option proto 'static'
+	option ipaddr '127.0.0.1'
+	option netmask '255.0.0.0'
+
+config globals 'globals'
+	option ula_prefix 'fd00:db8:cafe::/48'
+
+# Hardware switch / DSA device configuration
+config device
+	option name 'br-lan'
+	option type 'bridge'
+	list ports 'eth1'
+	list ports 'eth2'
+	list ports 'eth3'
+
+# Trusted Zone: VLAN 10 (192.168.10.0/24)
+config bridge-vlan
+	option device 'br-lan'
+	option vlan '10'
+	list ports 'eth1:u*'
+	list ports 'eth2:t'
+
+config interface 'lan'
+	option device 'br-lan.10'
+	option proto 'static'
+	option ipaddr '192.168.10.1'
+	option netmask '255.255.255.0'
+	option ip6assign '60'
+
+# Quarantine Zone: VLAN 20 (192.168.20.0/24)
+config bridge-vlan
+	option device 'br-lan'
+	option vlan '20'
+	list ports 'eth3:u*'
+	list ports 'eth2:t'
+
+config interface 'quarantine'
+	option device 'br-lan.20'
+	option proto 'static'
+	option ipaddr '192.168.20.1'
+	option netmask '255.255.255.0'
+
+# WAN Gateway Interface
+config interface 'wan'
+	option device 'eth0'
+	option proto 'dhcp'
+
+config interface 'wan6'
+	option device 'eth0'
+	option proto 'dhcpv6'

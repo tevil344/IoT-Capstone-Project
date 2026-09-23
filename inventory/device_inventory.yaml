@@ -1,0 +1,98 @@
+# ==============================================================================
+# IoT Zero-Trust Gateway - Device Inventory Template
+# Schema definition and baseline device registry
+# ==============================================================================
+version: "1.0"
+updated_at: "2026-09-23T15:15:00Z"
+policy_defaults:
+  default_quarantine_vlan: 20
+  trusted_vlan: 10
+  flagged_vlan: 99
+  max_quarantine_duration_seconds: 3600
+  rejection_confidence_threshold: 0.65
+  consistency_threshold: 0.75
+
+devices:
+  - mac: "b8:27:eb:aa:bb:cc"
+    hostname: "smart-cam-livingroom"
+    vendor: "Raspberry Pi Trading Ltd"
+    expected_class: "smart_camera"
+    vlan_id: 10
+    trust_state: "trusted"
+    enforcement_action: "allow"
+    first_seen: "2026-09-01T10:00:00Z"
+    last_verified: "2026-09-23T12:00:00Z"
+    baseline_profile:
+      dhcp_option_order: "53,61,50,12,55"
+      dhcp_vendor_class: "dhcpcd-8.1.2"
+      discovery_services: ["_rtsp._tcp.local", "_http._tcp.local"]
+      open_ports: [80, 554, 8554]
+      traffic_profile:
+        avg_packet_size_range: [800, 1400]
+        periodicity_score_min: 0.70
+
+  - mac: "44:65:0d:11:22:33"
+    hostname: "echo-dot-kitchen"
+    vendor: "Amazon Technologies Inc."
+    expected_class: "smart_speaker"
+    vlan_id: 10
+    trust_state: "trusted"
+    enforcement_action: "allow"
+    first_seen: "2026-09-05T14:30:00Z"
+    last_verified: "2026-09-22T08:15:00Z"
+    baseline_profile:
+      dhcp_option_order: "53,55,57,61,50,51"
+      dhcp_vendor_class: "android-dhcp-9"
+      discovery_services: ["_amzn-wplay._tcp.local", "_spotify-connect._tcp.local"]
+      open_ports: [4070, 8008, 8443]
+      traffic_profile:
+        avg_packet_size_range: [150, 600]
+        periodicity_score_min: 0.50
+
+  - mac: "50:c7:bf:44:55:66"
+    hostname: "tplink-kasa-plug01"
+    vendor: "TP-Link Corporation"
+    expected_class: "smart_plug"
+    vlan_id: 10
+    trust_state: "trusted"
+    enforcement_action: "allow"
+    first_seen: "2026-09-10T11:00:00Z"
+    last_verified: "2026-09-23T06:00:00Z"
+    baseline_profile:
+      dhcp_option_order: "53,50,55"
+      dhcp_vendor_class: "TP-LINK Smart Plug"
+      discovery_services: ["_iot-device._udp.local"]
+      open_ports: [9999]
+      traffic_profile:
+        avg_packet_size_range: [60, 200]
+        periodicity_score_min: 0.85
+
+  - mac: "00:17:88:77:88:99"
+    hostname: "philips-hue-bridge"
+    vendor: "Signify Netherlands B.V."
+    expected_class: "smart_light"
+    vlan_id: 10
+    trust_state: "trusted"
+    enforcement_action: "allow"
+    first_seen: "2026-09-11T12:00:00Z"
+    last_verified: "2026-09-23T07:30:00Z"
+    baseline_profile:
+      dhcp_option_order: "53,55,57,61"
+      dhcp_vendor_class: "hue-bridge"
+      discovery_services: ["_hue._tcp.local", "_hap._tcp.local"]
+      open_ports: [80, 443, 8080]
+      traffic_profile:
+        avg_packet_size_range: [100, 450]
+        periodicity_score_min: 0.60
+
+  # Example of an unverified / newly connected device currently under quarantine
+  - mac: "fc:65:de:aa:11:22"
+    hostname: "unknown-device"
+    vendor: "Espressif Inc."
+    expected_class: "unknown"
+    vlan_id: 20
+    trust_state: "quarantined"
+    enforcement_action: "quarantine"
+    first_seen: "2026-09-23T15:00:00Z"
+    last_verified: null
+    baseline_profile: null
