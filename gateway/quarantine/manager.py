@@ -13,8 +13,9 @@ import re
 import shutil
 import sqlite3
 import subprocess
+from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Generator, List, Optional
 
 logger = logging.getLogger("gateway.quarantine")
 MAC_REGEX = re.compile(r"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$")
@@ -67,10 +68,20 @@ class QuarantineManager:
             self.db_path,
         )
 
+    @contextmanager
+    def _connection(self) -> Generator[sqlite3.Connection, None, None]:
+        """Context manager for auto-commit and clean connection closing."""
+        conn = sqlite3.connect(self.db_path)
+        try:
+            yield conn
+            conn.commit()
+        finally:
+            conn.close()
+
     def _init_db(self) -> None:
         """Initialize SQLite audit database table."""
         os.makedirs(os.path.dirname(os.path.abspath(self.db_path)), exist_ok=True)
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -90,14 +101,13 @@ class QuarantineManager:
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_quarantine_ts ON quarantine_audit (timestamp)"
             )
-            conn.commit()
 
     def _log_audit(
         self, mac: str, action: str, reason: str, details: str = ""
     ) -> None:
         """Persist an enforcement action into the audit trail."""
         now = datetime.now(timezone.utc).isoformat()
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -106,7 +116,6 @@ class QuarantineManager:
                 """,
                 (now, mac, action, reason, details),
             )
-            conn.commit()
 
     def _run_nft_cmd(self, args: List[str]) -> subprocess.CompletedProcess[str]:
         """Execute an nft command via subprocess."""
@@ -226,7 +235,7 @@ class QuarantineManager:
 
     def get_audit_history(self, mac: Optional[str] = None) -> List[Dict[str, Any]]:
         """Retrieve audit log history."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             if mac:
