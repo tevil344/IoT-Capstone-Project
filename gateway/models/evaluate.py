@@ -43,17 +43,15 @@ class ModelEvaluator:
         known_consistencies = [d["consistency_score"] for d in detailed_known]
 
         # Calculate Macro-F1 (for known classes)
-        # Note: If any known sample was rejected as 'UNKNOWN', it counts as a false negative against its true class
-        known_classes = list(self.classifier.classes_)
-        all_eval_classes = sorted(list(set(known_classes).union(set(y_pred_known))))
-        macro_f1 = float(f1_score(y_known_test, y_pred_known, labels=known_classes, average="macro", zero_division=0))
-        weighted_f1 = float(f1_score(y_known_test, y_pred_known, labels=known_classes, average="weighted", zero_division=0))
+        # Note: If any known sample was rejected as 'UNKNOWN', it counts as a false negative
+        all_eval_classes = sorted(list(set(y_known_test.unique()).union(set(y_pred_known))))
+        macro_f1 = float(f1_score(y_known_test, y_pred_known, average="macro", zero_division=0))
+        weighted_f1 = float(f1_score(y_known_test, y_pred_known, average="weighted", zero_division=0))
         accuracy = float(np.mean(np.array(y_pred_known) == np.array(y_known_test)))
 
         report_dict = classification_report(
             y_known_test,
             y_pred_known,
-            labels=known_classes,
             output_dict=True,
             zero_division=0,
         )
@@ -118,3 +116,4 @@ class ModelEvaluator:
         if metrics["mean_unknown_consistency"] > 0:
             print(f" Mean Consistency (Unknown) : {metrics['mean_unknown_consistency']:.3f}")
         print("=" * 60)
+

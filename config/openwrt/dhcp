@@ -41,3 +41,4 @@ config dhcp 'quarantine'
 	# Push gateway IP as DNS and NTP server only
 	list dhcp_option '6,192.168.20.1'
 	list dhcp_option '42,192.168.20.1'
+

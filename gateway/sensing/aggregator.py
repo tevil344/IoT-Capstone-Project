@@ -179,3 +179,4 @@ class DeviceSignalAggregator:
             "periodicity_score": float(traf_dict.get("periodicity_score", 0.0)),
             "burstiness_ratio": float(traf_dict.get("burstiness_ratio", 1.0)),
         }
+

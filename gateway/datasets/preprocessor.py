@@ -58,42 +58,28 @@ DEFAULT_FEATURE_COLS = [
 
 
 class DeviceDisjointSplitter:
-    """Splits dataset ensuring physical device instances are disjoint between train and test,
-    while stratifying across device classes so every class has held-out evaluation devices."""
+    """Splits dataset ensuring physical device instances are disjoint between train and test."""
 
-    def __init__(self, test_size: float = 0.33, random_state: int = 42) -> None:
+    def __init__(self, test_size: float = 0.3, random_state: int = 42) -> None:
         self.test_size = test_size
         self.random_state = random_state
 
     def split(
         self, df: pd.DataFrame, device_col: str = "device_id", label_col: str = "device_class"
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """Perform stratified device-disjoint train/test split."""
+        """Perform device-disjoint train/test split."""
         if device_col not in df.columns:
             raise KeyError(f"Column '{device_col}' required for device-disjoint splitting.")
 
-        rng = np.random.RandomState(self.random_state)
-        train_devs: Set[str] = set()
-        test_devs: Set[str] = set()
+        gss = GroupShuffleSplit(n_splits=1, test_size=self.test_size, random_state=self.random_state)
+        train_idx, test_idx = next(gss.split(df, groups=df[device_col]))
 
-        if label_col in df.columns:
-            for cls in sorted(df[label_col].unique()):
-                cls_devs = sorted(list(df[df[label_col] == cls][device_col].unique()))
-                rng.shuffle(cls_devs)
-                n_test = max(1, int(round(len(cls_devs) * self.test_size))) if len(cls_devs) > 1 else 0
-                test_devs.update(cls_devs[:n_test])
-                train_devs.update(cls_devs[n_test:])
-        else:
-            all_devs = sorted(list(df[device_col].unique()))
-            rng.shuffle(all_devs)
-            n_test = max(1, int(round(len(all_devs) * self.test_size)))
-            test_devs.update(all_devs[:n_test])
-            train_devs.update(all_devs[n_test:])
+        train_df = df.iloc[train_idx].copy().reset_index(drop=True)
+        test_df = df.iloc[test_idx].copy().reset_index(drop=True)
 
-        train_df = df[df[device_col].isin(train_devs)].copy().reset_index(drop=True)
-        test_df = df[df[device_col].isin(test_devs)].copy().reset_index(drop=True)
-
-        # Verification: Guarantee absolute device-level disjointness
+        # Verification
+        train_devs = set(train_df[device_col])
+        test_devs = set(test_df[device_col])
         overlap = train_devs.intersection(test_devs)
         if overlap:
             raise RuntimeError(f"Data leakage detected! Devices in both train and test: {overlap}")
@@ -177,3 +163,4 @@ def preprocess_feature_dataframe(
 
     labels = df[label_col].copy() if label_col in df.columns else None
     return features_df, labels, cols
+

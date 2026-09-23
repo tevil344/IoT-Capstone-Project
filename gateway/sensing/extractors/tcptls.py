@@ -266,3 +266,4 @@ class TCPTLSExtractor:
             "sni_hostnames": sorted(list(self.sni_hostnames)),
             "sni_count": len(self.sni_hostnames),
         }
+

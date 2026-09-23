@@ -176,3 +176,4 @@ class TrafficExtractor:
             "burstiness_ratio": timing_stats["burstiness_ratio"],
             "protocol_counts": dict(self.protocols),
         }
+

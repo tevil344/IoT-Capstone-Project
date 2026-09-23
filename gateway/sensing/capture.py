@@ -95,3 +95,4 @@ class PacketCaptureEngine:
             event_type="CAPTURE_STOPPED",
             message=f"Passive sniffing completed on interface {interface}",
         )
+

@@ -144,3 +144,4 @@ class DHCPExtractor:
             "param_req_list": self.parameter_request_list,
             "param_req_list_str": ",".join(str(x) for x in self.parameter_request_list) if self.parameter_request_list else "",
         }
+

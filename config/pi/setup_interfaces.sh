@@ -43,3 +43,4 @@ ip link set dev "${GATEWAY_VLAN_TRUNK_IF}.${QUARANTINE_VLAN_ID}" up
 
 echo "[✔] VLAN Sub-interfaces active:"
 ip -br addr show | grep -E "${GATEWAY_VLAN_TRUNK_IF}\."
+

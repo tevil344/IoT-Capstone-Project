@@ -90,3 +90,4 @@ config rule
 # Include custom nftables ruleset
 config include
 	option path '/etc/nftables.d/gateway.nft'
+

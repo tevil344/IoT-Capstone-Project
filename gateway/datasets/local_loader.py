@@ -122,3 +122,4 @@ class LocalTraceLoader:
         if not all_dfs:
             return pd.DataFrame(columns=DEFAULT_FEATURE_COLS + ["mac", "device_class"])
         return pd.concat(all_dfs, ignore_index=True)
+

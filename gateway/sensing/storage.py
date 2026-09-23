@@ -207,3 +207,4 @@ class SensorStorage:
                 },
                 "features": json.loads(row["feature_vector_json"]),
             }
+
