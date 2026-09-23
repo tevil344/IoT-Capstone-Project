@@ -1,0 +1,92 @@
+config defaults
+	option syn_flood '1'
+	option input 'DROP'
+	option output 'ACCEPT'
+	option forward 'DROP'
+
+# Trusted LAN Zone
+config zone
+	option name 'lan'
+	list network 'lan'
+	option input 'ACCEPT'
+	option output 'ACCEPT'
+	option forward 'ACCEPT'
+
+# Quarantine Zone (Default DROP for input and forward)
+config zone
+	option name 'quarantine'
+	list network 'quarantine'
+	option input 'DROP'
+	option output 'ACCEPT'
+	option forward 'DROP'
+	option log '1'
+	option log_limit '20/minute'
+
+# WAN Zone
+config zone
+	option name 'wan'
+	list network 'wan'
+	list network 'wan6'
+	option input 'DROP'
+	option output 'ACCEPT'
+	option forward 'DROP'
+	option masq '1'
+	option mtu_fix '1'
+
+# Forwarding: Allow Trusted LAN -> WAN
+config forwarding
+	option src 'lan'
+	option dest 'wan'
+
+# Quarantine Rules: Explicit Allow for DHCP (UDP 67)
+config rule
+	option name 'Allow-Quarantine-DHCP'
+	option src 'quarantine'
+	option proto 'udp'
+	option dest_port '67'
+	option target 'ACCEPT'
+
+# Quarantine Rules: Explicit Allow for DNS (UDP/TCP 53 to gateway only)
+config rule
+	option name 'Allow-Quarantine-DNS-UDP'
+	option src 'quarantine'
+	option proto 'udp'
+	option dest_port '53'
+	option target 'ACCEPT'
+
+config rule
+	option name 'Allow-Quarantine-DNS-TCP'
+	option src 'quarantine'
+	option proto 'tcp'
+	option dest_port '53'
+	option target 'ACCEPT'
+
+# Quarantine Rules: Explicit Allow for NTP (UDP 123 to gateway only)
+config rule
+	option name 'Allow-Quarantine-NTP'
+	option src 'quarantine'
+	option proto 'udp'
+	option dest_port '123'
+	option target 'ACCEPT'
+
+# Quarantine Rules: Deny and Log Lateral Traffic to Trusted LAN
+config rule
+	option name 'Block-Quarantine-To-LAN'
+	option src 'quarantine'
+	option dest 'lan'
+	option target 'DROP'
+	option log '1'
+	option log_limit '30/minute'
+
+# Quarantine Rules: Deny and Log WAN Access
+config rule
+	option name 'Block-Quarantine-To-WAN'
+	option src 'quarantine'
+	option dest 'wan'
+	option target 'DROP'
+	option log '1'
+	option log_limit '30/minute'
+
+# Include custom nftables ruleset
+config include
+	option path '/etc/nftables.d/gateway.nft'

@@ -1,0 +1,120 @@
+#!/usr/sbin/nft -f
+# ==============================================================================
+# IoT Zero-Trust Gateway - Production nftables Ruleset
+# Table: inet filter
+# Policies: Default Deny, Quarantine Zone with DHCP/DNS/NTP Allow, Lateral Deny
+# ==============================================================================
+
+flush ruleset
+
+table inet filter {
+    # -------------------------------------------------------------------------
+    # Dynamic MAC Address Sets
+    # -------------------------------------------------------------------------
+    set quarantine_macs {
+        type ether_addr
+        flags interval, timeout
+        comment "Dynamic set of untrusted / newly connected MAC addresses"
+    }
+
+    set trusted_macs {
+        type ether_addr
+        flags interval
+        comment "Verified and allowed IoT device MAC addresses"
+    }
+
+    # -------------------------------------------------------------------------
+    # Inbound Gateway Traffic (Local Services)
+    # -------------------------------------------------------------------------
+    chain input {
+        type filter hook input priority filter; policy drop;
+
+        # Allow Loopback
+        iif "lo" accept comment "Allow local loopback"
+
+        # Connection Tracking: Allow Established & Related
+        ct state established,related accept comment "Allow established connections"
+        ct state invalid log prefix "NFT_INVALID_DROP: " counter drop comment "Drop invalid state"
+
+        # Explicit Allow for Quarantined Devices: DHCP, DNS, NTP ONLY
+        ether saddr @quarantine_macs jump quarantine_input_check
+
+        # Interface-level Quarantine Rules (for all traffic originating on quarantine VLAN br-lan.20)
+        iifname "br-lan.20" jump quarantine_input_check
+
+        # Trusted LAN (VLAN 10) Services: SSH, Web UI, DHCP, DNS
+        iifname "br-lan.10" tcp dport { 22, 80, 443 } accept comment "Allow admin access from trusted LAN"
+        iifname "br-lan.10" udp dport { 53, 67, 123 } accept comment "Allow LAN Core Services"
+        iifname "br-lan.10" tcp dport 53 accept comment "Allow LAN DNS TCP"
+
+        # ICMP / Ping (Rate limited)
+        ip protocol icmp icmp type echo-request limit rate 10/second accept
+        ip6 nexthdr ipv6-icmp icmpv6 type { echo-request, nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } accept
+
+        # Deny all remaining gateway input with rate-limited logging
+        limit rate 5/minute log prefix "NFT_INPUT_DEFAULT_DROP: " counter
+        counter drop
+    }
+
+    # Helper chain for quarantine input inspection
+    chain quarantine_input_check {
+        # Allow DHCP Request / Discovery to Gateway
+        udp sport 68 udp dport 67 accept comment "Allow Quarantine DHCP"
+        udp sport 67 udp dport 68 accept comment "Allow Quarantine DHCP Reply"
+
+        # Allow DNS to Gateway resolver (Strictly local resolver: 192.168.20.1)
+        ip daddr 192.168.20.1 udp dport 53 accept comment "Allow Quarantine DNS UDP"
+        ip daddr 192.168.20.1 tcp dport 53 accept comment "Allow Quarantine DNS TCP"
+
+        # Allow NTP Time Sync to Gateway time service (192.168.20.1)
+        ip daddr 192.168.20.1 udp dport 123 accept comment "Allow Quarantine NTP"
+
+        # Observation Logging & Drop for all other quarantine input traffic
+        limit rate 20/minute log prefix "NFT_QUARANTINE_INPUT_OBSERVE: " counter
+        counter drop
+    }
+
+    # -------------------------------------------------------------------------
+    # Forwarding Traffic (Inter-VLAN & WAN Routing)
+    # -------------------------------------------------------------------------
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+
+        # Allow Established / Related Forwarding
+        ct state established,related accept comment "Allow established forwarded connections"
+
+        # 1. Deny Lateral Traffic within Quarantine VLAN (Intra-VLAN client isolation)
+        iifname "br-lan.20" oifname "br-lan.20" \
+            log prefix "NFT_LATERAL_INTRA_QUARANTINE_DROP: " counter drop \
+            comment "Block intra-quarantine lateral probing"
+
+        # 2. Deny Lateral Traffic from Quarantine VLAN to Trusted LAN
+        iifname "br-lan.20" oifname "br-lan.10" \
+            log prefix "NFT_LATERAL_QUARANTINE_TO_LAN_DROP: " counter drop \
+            comment "Block quarantine to trusted LAN"
+
+        # 3. Deny Quarantined MACs from forwarding anywhere (including WAN)
+        ether saddr @quarantine_macs \
+            limit rate 30/minute log prefix "NFT_QUARANTINE_FORWARD_DROP: " \
+            counter drop comment "Block quarantined MAC forwarding"
+
+        # 4. Deny Quarantine VLAN 20 egress to WAN (eth0)
+        iifname "br-lan.20" oifname "eth0" \
+            limit rate 30/minute log prefix "NFT_QUARANTINE_WAN_DROP: " \
+            counter drop comment "Block quarantine WAN egress"
+
+        # 5. Allow Trusted LAN (VLAN 10) to WAN
+        iifname "br-lan.10" oifname "eth0" ct state new,established,related accept \
+            comment "Allow trusted LAN internet access"
+
+        # Default drop for all other forwarded packets
+        counter drop
+    }
+
+    # -------------------------------------------------------------------------
+    # Outbound Traffic Originating from Gateway
+    # -------------------------------------------------------------------------
+    chain output {
+        type filter hook output priority filter; policy accept;
+    }
+}
