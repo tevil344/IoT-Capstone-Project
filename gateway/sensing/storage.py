@@ -165,7 +165,7 @@ class SensorStorage:
     ) -> None:
         """Record system audit log event."""
         now = datetime.now(timezone.utc).isoformat()
-        meta_json = json.dumps(metadata) if metadata else None
+        meta_json = json.dumps(metadata, default=str) if metadata else None
         with self._connection() as conn:
             cursor = conn.cursor()
             cursor.execute(

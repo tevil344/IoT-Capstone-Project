@@ -77,15 +77,14 @@ def run_pipeline(
         generator = BenchmarkDatasetGenerator(seed=int(time.time()))
         temp_dir = tempfile.mkdtemp()
         pcap_file = os.path.join(temp_dir, f"{device_class}_trace.pcap")
-        mac = f"b8:27:eb:{device_class[:2].encode().hex()[:4]}:55"
-        if device_class == "rogue_unknown":
-            mac = "a0:b1:c2:d3:e4:f5"
-        elif device_class == "smart_speaker":
-            mac = "44:65:0d:88:99:aa"
-        elif device_class == "smart_plug":
-            mac = "50:c7:bf:12:34:56"
-        elif device_class == "thermostat":
-            mac = "00:17:88:fe:dc:ba"
+        mac_map = {
+            "smart_camera": "b8:27:eb:aa:11:22",
+            "smart_speaker": "44:65:0d:88:99:aa",
+            "smart_plug": "50:c7:bf:12:34:56",
+            "thermostat": "00:17:88:fe:dc:ba",
+            "rogue_unknown": "a0:b1:c2:d3:e4:f5",
+        }
+        mac = mac_map.get(device_class, "fc:65:de:11:22:33")
 
         ip = "192.168.20.77"
         print(f"\n[STEP 1] Device Connected: MAC={mac} (Class={device_class})")

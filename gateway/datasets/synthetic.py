@@ -17,7 +17,7 @@ import time
 from typing import Any, Dict, List, Tuple
 import pandas as pd
 from scapy.layers.dhcp import BOOTP, DHCP
-from scapy.layers.dns import DNS, DNSRR
+from scapy.layers.dns import DNS, DNSRR, DNSRRSRV
 from scapy.layers.inet import IP, TCP, UDP
 from scapy.layers.l2 import Ether
 from scapy.packet import Packet, Raw
@@ -256,28 +256,38 @@ class BenchmarkDatasetGenerator:
         dhcp_pkt.time = base_time
         packets.append(dhcp_pkt)
 
-        # 2. mDNS Service Advertisement
+        # 2. mDNS Service Advertisements
         if config["mdns_services"]:
-            mdns_pkt = (
-                Ether(src=mac, dst="01:00:5e:00:00:fb")
-                / IP(src=ip, dst="224.0.0.251")
-                / UDP(sport=5353, dport=5353)
-                / DNS(
-                    qr=1,
-                    an=DNSRR(
-                        rrname=f"{config['mdns_services'][0]}.",
+            for idx, srv_name in enumerate(config["mdns_services"]):
+                srv_port = config["ports"][idx] if idx < len(config["ports"]) else config["ports"][0]
+                records = (
+                    DNSRR(
+                        rrname=f"{srv_name}.",
                         type="PTR",
-                        rdata=f"Device.{config['mdns_services'][0]}.",
+                        rdata=f"Device.{srv_name}.",
                     )
                     / DNSRR(
-                        rrname=f"Device.{config['mdns_services'][0]}.",
+                        rrname=f"Device.{srv_name}.",
                         type="TXT",
                         rdata=[f"{k}=val".encode() for k in config["txt_keys"]],
-                    ),
+                    )
+                    / DNSRRSRV(
+                        rrname=f"Device.{srv_name}.",
+                        port=srv_port,
+                    )
                 )
-            )
-            mdns_pkt.time = base_time + 1.2
-            packets.append(mdns_pkt)
+                mdns_pkt = (
+                    Ether(src=mac, dst="01:00:5e:00:00:fb")
+                    / IP(src=ip, dst="224.0.0.251")
+                    / UDP(sport=5353, dport=5353)
+                    / DNS(
+                        qr=1,
+                        ancount=3,
+                        an=records,
+                    )
+                )
+                mdns_pkt.time = base_time + 1.2 + (idx * 0.1)
+                packets.append(mdns_pkt)
 
         # 3. TCP SYN Connection
         syn_pkt = (
@@ -294,11 +304,25 @@ class BenchmarkDatasetGenerator:
         syn_pkt.time = base_time + 2.0
         packets.append(syn_pkt)
 
-        # 4. Data Traffic stream
+        # 4. TLS Client Hello (for devices with TLS enabled)
+        if device_class in ("smart_speaker", "thermostat", "smart_camera"):
+            tls_payload = self._build_tls_client_hello(f"{config['hostname_prefix']}.iot.local")
+            tls_pkt = (
+                Ether(src=mac, dst="00:11:22:33:44:01")
+                / IP(src=ip, dst=f"198.51.100.1", ttl=config["ttl"])
+                / TCP(sport=45120, dport=443, flags="PA")
+                / Raw(tls_payload)
+            )
+            tls_pkt.time = base_time + 2.2
+            packets.append(tls_pkt)
+
+        # 5. Data Traffic stream
         cur_time = base_time + 2.5
         payload_size = int(config["pkt_size_mean"])
-        for i in range(packet_count - len(packets)):
-            cur_time += max(0.01, random.gauss(0.5, 0.1))
+        remaining_pkts = max(1, packet_count - len(packets))
+        time_step = 55.0 / remaining_pkts
+        for i in range(remaining_pkts):
+            cur_time += max(0.01, random.gauss(time_step, time_step * 0.1))
             pkt = (
                 Ether(src=mac, dst="00:11:22:33:44:01")
                 / IP(src=ip, dst=f"198.51.100.{10 + (i % config['unique_dest_ips'])}", ttl=config["ttl"])
@@ -310,4 +334,41 @@ class BenchmarkDatasetGenerator:
 
         wrpcap(output_pcap_path, packets)
         return output_pcap_path
+
+    @staticmethod
+    def _build_tls_client_hello(sni: str) -> bytes:
+        """Construct synthetic TLS 1.2 Client Hello payload."""
+        import struct
+        sni_bytes = sni.encode("utf-8")
+        sni_ext = (
+            struct.pack("!HHH", 0x0000, len(sni_bytes) + 5, len(sni_bytes) + 3)
+            + b"\x00"
+            + struct.pack("!H", len(sni_bytes))
+            + sni_bytes
+        )
+        groups_ext = struct.pack("!HHH", 0x000A, 6, 4) + struct.pack("!HH", 0x001D, 0x0017)
+        ec_fmt_ext = struct.pack("!HHBB", 0x000B, 2, 1, 0x00)
+        extensions = sni_ext + groups_ext + ec_fmt_ext
+        ciphers = struct.pack("!H", 4) + struct.pack("!HH", 0xC02F, 0xC030)
+        comp = b"\x01\x00"
+        session_id = b"\x00"
+        random_bytes = b"\x02" * 32
+        client_version = struct.pack("!H", 0x0303)
+        handshake_body = (
+            client_version
+            + random_bytes
+            + session_id
+            + ciphers
+            + comp
+            + struct.pack("!H", len(extensions))
+            + extensions
+        )
+        handshake_header = b"\x01" + struct.pack("!I", len(handshake_body))[1:]
+        record = (
+            b"\x16\x03\x01"
+            + struct.pack("!H", len(handshake_header + handshake_body))
+            + handshake_header
+            + handshake_body
+        )
+        return record
 

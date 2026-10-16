@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from typing import Any, Dict, List, Set
-from scapy.layers.dns import DNS, DNSRR
+from scapy.layers.dns import DNS, DNSRR, DNSRRSRV
 from scapy.layers.inet import UDP
 from scapy.packet import Packet
 
@@ -74,7 +74,7 @@ class DiscoveryExtractor:
             for r in records:
                 rr = r
                 while rr and hasattr(rr, "name") and rr.name != "NoPayload":
-                    if isinstance(rr, DNSRR):
+                    if isinstance(rr, (DNSRR, DNSRRSRV)):
                         rr_name = self._clean_dns_name(rr.rrname)
                         if self._is_service_name(rr_name):
                             self.mdns_services.add(rr_name)

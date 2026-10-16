@@ -76,7 +76,6 @@ The repo is divided into a few clear subsystems:
 │   ├── test_models.py
 │   ├── test_quarantine.py
 │   └── test_sensing.py
-└── eval "$(ssh-agent -s)"*
 ```
 
 ## How the system works

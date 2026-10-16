@@ -139,13 +139,13 @@ class ZeroTrustDeviceClassifier:
                 dists = np.linalg.norm(cls_points - centroid, axis=1)
                 intra_class_distances.extend(dists.tolist())
 
-        # Set open-set distance threshold based on training distribution
+        # Set open-set distance threshold based on training distribution (with 2x safety margin for natural network jitter)
         if intra_class_distances:
             self.distance_threshold = float(
-                np.percentile(intra_class_distances, self.distance_threshold_percentile)
+                np.percentile(intra_class_distances, self.distance_threshold_percentile) * 2.0
             )
         else:
-            self.distance_threshold = 10.0
+            self.distance_threshold = 12.0
 
         self.is_fitted = True
         logger.info(
@@ -236,7 +236,7 @@ class ZeroTrustDeviceClassifier:
             "raw_class": raw_class,
             "confidence": round(confidence, 4),
             "consistency_score": consistency_score,
-            "is_rejected": is_rejected,
+            "is_rejected": bool(is_rejected),
             "rejection_reason": (
                 "LOW_CONFIDENCE"
                 if is_unknown_prob
