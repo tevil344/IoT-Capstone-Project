@@ -536,3 +536,4 @@ nft list chain inet filter forward
 ## 10. Conclusion & Client Delivery Sign-Off
 
 The **Raspberry Pi Zero-Trust IoT Gateway** is complete, verified, and ready for client delivery. It successfully bridges physical network isolation with passive machine learning, ensuring that no device is trusted by default, unknown devices cannot communicate laterally, and compromised devices are automatically detected and expelled from the network.
+

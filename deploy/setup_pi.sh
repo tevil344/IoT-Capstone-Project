@@ -78,3 +78,4 @@ echo " Start Gateway:   systemctl start iot-gateway.service"
 echo " Start Dashboard: systemctl start iot-dashboard.service"
 echo " Web Dashboard:   http://$(hostname -I | awk '{print $1}'):8080"
 echo "======================================================================"
+

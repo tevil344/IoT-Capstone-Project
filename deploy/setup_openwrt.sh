@@ -46,3 +46,4 @@ echo " [✔] OpenWrt Zero-Trust Provisioning Complete!"
 echo " VLAN 10 (Trusted):     192.168.10.1/24 (SSID: IoT-Secure-Production)"
 echo " VLAN 20 (Quarantine):  192.168.20.1/24 (SSID: IoT-Onboarding [Isolated])"
 echo "======================================================================"
+
