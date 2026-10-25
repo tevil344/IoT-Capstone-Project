@@ -1,0 +1,17 @@
+[Unit]
+Description=IoT Zero-Trust Gateway Web Dashboard and REST API
+After=network-online.target iot-gateway.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/iot-gateway
+ExecStart=/opt/iot-gateway/.venv/bin/python -m gateway.api.server
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,18 @@
+[Unit]
+Description=IoT Zero-Trust Gateway Enforcement Daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/iot-gateway
+ExecStart=/opt/iot-gateway/.venv/bin/python -m gateway.enforcement.controller
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

@@ -3,6 +3,11 @@
 from gateway.models.classifier import ZeroTrustDeviceClassifier
 from gateway.models.evaluate import ModelEvaluator
 from gateway.models.train import train_and_export_model
+from gateway.models.anomaly import BehavioralAnomalyDetector
 
-__all__ = ["ZeroTrustDeviceClassifier", "ModelEvaluator", "train_and_export_model"]
-
+__all__ = [
+    "ZeroTrustDeviceClassifier",
+    "ModelEvaluator",
+    "train_and_export_model",
+    "BehavioralAnomalyDetector",
+]
