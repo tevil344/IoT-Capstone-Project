@@ -19,6 +19,7 @@ from typing import Any, Dict, Generator, List, Optional
 
 logger = logging.getLogger("gateway.quarantine")
 MAC_REGEX = re.compile(r"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$")
+MAC_IN_TEXT_REGEX = re.compile(r"(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}")
 
 
 def normalize_mac(mac: str) -> str:
@@ -228,8 +229,11 @@ class QuarantineManager:
                 ["list", "set", self.table_family, self.table_name, self.quarantine_set]
             )
             # Find MACs in set output
-            matches = MAC_REGEX.findall(res.stdout)
-            return sorted(list(set(normalize_mac(m) for m in matches)))
+            # ``findall`` returns tuples because the regex contains capture
+            # groups.  Use the whole match so this works against real nft
+            # output rather than only in dry-run mode.
+            matches = MAC_IN_TEXT_REGEX.finditer(res.stdout)
+            return sorted({normalize_mac(match.group(0)) for match in matches})
         except subprocess.CalledProcessError:
             return []
 

@@ -115,6 +115,21 @@ class TestAPIServer(unittest.TestCase):
         with urllib.request.urlopen(req_promote) as resp5:
             self.assertEqual(resp5.status, 200)
 
+    def test_simulate_rejects_malformed_json(self):
+        req = urllib.request.Request(
+            f"{self.base_url}/api/simulate",
+            data=b"{not-json",
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with self.assertRaises(urllib.error.HTTPError) as raised:
+            urllib.request.urlopen(req)
+        self.assertEqual(raised.exception.code, 400)
+        try:
+            self.assertIn("valid JSON", raised.exception.read().decode("utf-8"))
+        finally:
+            raised.exception.close()
+
 
 if __name__ == "__main__":
     unittest.main()

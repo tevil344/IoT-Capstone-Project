@@ -14,7 +14,7 @@ import os
 import sys
 import tempfile
 import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from gateway.datasets.synthetic import BenchmarkDatasetGenerator
@@ -22,6 +22,7 @@ from gateway.enforcement.controller import ClosedLoopEnforcementController
 from gateway.enforcement.policy import DeviceTrustState, ZeroTrustPolicyEngine
 from gateway.models.anomaly import BehavioralAnomalyDetector
 from gateway.models.classifier import ZeroTrustDeviceClassifier
+from gateway.models.train import train_and_export_model
 from gateway.quarantine.manager import QuarantineManager
 from gateway.sensing.capture import PacketCaptureEngine
 from gateway.sensing.storage import SensorStorage
@@ -424,11 +425,20 @@ class GatewayAPIHandler(BaseHTTPRequestHandler):
         if path == "/api/simulate":
             content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
-            payload = json.loads(body) if body else {}
+            try:
+                payload = json.loads(body) if body else {}
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                self._send_json({"error": "Request body must be valid JSON."}, status=400)
+                return
+            if not isinstance(payload, dict):
+                self._send_json({"error": "Request body must be a JSON object."}, status=400)
+                return
             scenario = payload.get("scenario", "smart_camera")
+            if not isinstance(scenario, str):
+                self._send_json({"error": "scenario must be a string."}, status=400)
+                return
 
             generator = BenchmarkDatasetGenerator()
-            temp_dir = tempfile.mkdtemp()
 
             if scenario in ("smart_camera", "smart_speaker", "smart_plug", "thermostat", "rogue_unknown"):
                 mac_map = {
@@ -440,14 +450,17 @@ class GatewayAPIHandler(BaseHTTPRequestHandler):
                 }
                 mac = mac_map[scenario]
                 ip = "192.168.20.77"
-                pcap_path = os.path.join(temp_dir, f"{scenario}.pcap")
+                # Use a managed temporary directory so repeated dashboard
+                # simulations do not leave PCAP files behind on the gateway.
+                with tempfile.TemporaryDirectory(prefix="iot-gateway-") as temp_dir:
+                    pcap_path = os.path.join(temp_dir, f"{scenario}.pcap")
 
-                # Step 1: Default-deny quarantine
-                self.controller.register_new_device(mac=mac, ip=ip, vendor=scenario.replace("_", " ").title())
+                    # Step 1: Default-deny quarantine
+                    self.controller.register_new_device(mac=mac, ip=ip, vendor=scenario.replace("_", " ").title())
 
-                # Step 2: Ingest PCAP
-                generator.generate_sample_pcap(output_pcap_path=pcap_path, device_class=scenario, mac=mac, ip=ip, packet_count=35)
-                self.capture_engine.process_pcap(pcap_path)
+                    # Step 2: Ingest PCAP
+                    generator.generate_sample_pcap(output_pcap_path=pcap_path, device_class=scenario, mac=mac, ip=ip, packet_count=35)
+                    self.capture_engine.process_pcap(pcap_path)
 
                 # Step 3: Run closed loop policy evaluation
                 decision = self.controller.evaluate_device(mac)
@@ -514,7 +527,7 @@ class GatewayAPIServer:
         self.port = port
         self.controller = controller
         self.capture_engine = capture_engine
-        self.server: Optional[HTTPServer] = None
+        self.server: Optional[ThreadingHTTPServer] = None
         self._thread: Optional[threading.Thread] = None
 
     def start(self, block: bool = False) -> None:
@@ -523,7 +536,7 @@ class GatewayAPIServer:
         GatewayAPIHandler.controller = self.controller
         GatewayAPIHandler.capture_engine = self.capture_engine
 
-        self.server = HTTPServer((self.host, self.port), GatewayAPIHandler)
+        self.server = ThreadingHTTPServer((self.host, self.port), GatewayAPIHandler)
         logger.info("Gateway API Server & Dashboard started at http://%s:%d", self.host, self.port)
 
         if block:
@@ -550,7 +563,15 @@ def run_api_server(
     db_path: str = "data/gateway.db",
 ) -> None:
     """Entry point helper to launch API server from command line."""
-    classifier = ZeroTrustDeviceClassifier.load(model_path)
+    # A new installation has no model artifact yet.  Train the deterministic
+    # baseline once so the documented `python -m gateway.api.server` command
+    # is immediately usable; subsequent starts reuse the saved artifact.
+    if os.path.exists(model_path):
+        classifier = ZeroTrustDeviceClassifier.load(model_path)
+    else:
+        os.makedirs(os.path.dirname(os.path.abspath(model_path)), exist_ok=True)
+        logger.info("No classifier artifact at %s; training baseline model.", model_path)
+        classifier, _ = train_and_export_model(output_model_path=model_path)
     storage = SensorStorage(db_path=db_path)
     quarantine = QuarantineManager(db_path=db_path)
     policy_engine = ZeroTrustPolicyEngine()

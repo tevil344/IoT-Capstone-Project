@@ -3,6 +3,7 @@
 import os
 import tempfile
 import unittest
+from unittest.mock import Mock
 
 from gateway.quarantine.manager import QuarantineManager, normalize_mac
 
@@ -45,6 +46,14 @@ class TestQuarantineManager(unittest.TestCase):
         self.assertEqual(history[0]["reason"], "new_iot_device")
         self.assertEqual(history[1]["action"], "RELEASE_TO_TRUSTED")
         self.assertEqual(history[1]["reason"], "fingerprint_verified")
+
+    def test_list_quarantined_macs_parses_nft_output(self):
+        self.manager.dry_run = False
+        self.manager._run_nft_cmd = Mock(return_value=Mock(stdout="elements = { AA-BB-CC-DD-EE-FF, 11:22:33:44:55:66 }"))
+        self.assertEqual(
+            self.manager.list_quarantined_macs(),
+            ["11:22:33:44:55:66", "aa:bb:cc:dd:ee:ff"],
+        )
 
 
 if __name__ == "__main__":
